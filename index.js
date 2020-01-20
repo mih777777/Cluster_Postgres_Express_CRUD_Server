@@ -1,7 +1,28 @@
-const app = require('./app')
-const PORT = process.env.PORT || 3000
+const cluster = require('cluster')
+const os = require('os')
+const pid = process.pid
 
+if(cluster.isMaster) {
+    const cpusCount = os.cpus().length 
+    console.log(`CPUs: ${cpusCount}`)
+    console.log(`Master started. Pid: ${pid}`)
+    for(let i = 0; i < cpusCount-1; i++) {
+        const worker = cluster.fork()
+        worker.on('exit', () => {
+            console.log(`Worker died! Pid: ${worker.process.pid}`)
+            cluster.fork()
+        })
+        worker.send('Hello frm server')
+        worker.on('message', (msg) => {
+            console.log(`Message from worker ${worker.process.pid} : ${JSON.stringify(msg)}`)
+        })
+    }
+}
 
-app.listen(PORT, () => {
-    console.log('Server listening on port' + PORT)
-})
+if(cluster.isWorker) {
+    require('./server.js')
+    process.on('message', (msg) => {
+        console.log(`Messsage from Master: ${msg}`)
+    })
+    process.send({text: 'Hello', pid})
+}
